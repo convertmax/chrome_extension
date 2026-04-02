@@ -8,8 +8,8 @@
     "webRequest"
   ],
   "host_permissions": [
-    "https://*.convertmax.io/*",
-    "http://*.convertmax.io/*"
+    "https://event.convertmax.io/v1/track/",
+    "https://event.convertmax.io/v1/track/*"
   ],
   "content_scripts": [
     {

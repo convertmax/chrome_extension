@@ -13,9 +13,10 @@
     visitorId: "",
     lastEventType: ""
   };
+  const TRACK_ENDPOINT_PREFIX = "https://event.convertmax.io/v1/track/";
 
-  function isConvertmaxUrl(url) {
-    return typeof url === "string" && url.includes("convertmax.io");
+  function isTrackUrl(url) {
+    return typeof url === "string" && url.startsWith(TRACK_ENDPOINT_PREFIX);
   }
 
   function emitState(extra = {}) {
@@ -70,7 +71,9 @@
 
   function scanScriptPresence() {
     const scripts = Array.from(document.scripts || []);
-    const hasConvertmaxScript = scripts.some((script) => isConvertmaxUrl(script.src));
+    const hasConvertmaxScript = scripts.some((script) =>
+      typeof script.src === "string" && script.src.includes("convertmax.io")
+    );
     const hasConvertmaxFunction = typeof window.Convertmax === "function";
     const inlineConvertmaxScript = scripts.find((script) =>
       typeof script.textContent === "string" &&
@@ -163,7 +166,7 @@
     })() : null;
 
     emitState({
-      eventURL: isConvertmaxUrl(url) ? url.replace(/\/v1\/track\/?.*$/, "") || state.eventURL : state.eventURL,
+      eventURL: isTrackUrl(url) ? url.replace(/\/v1\/track\/?.*$/, "") || state.eventURL : state.eventURL,
       apiKey: extractApiKeyFromHeaders(headers) || state.apiKey,
       sessionId: parsed?.session_id || state.sessionId,
       visitorId: parsed?.visitor || state.visitorId,
@@ -284,7 +287,7 @@
         (typeof input === "object" && input && "method" in input ? input.method : "GET");
       const requestId = `fetch:${Date.now()}:${Math.random().toString(16).slice(2)}`;
 
-      if (isConvertmaxUrl(url)) {
+      if (isTrackUrl(url)) {
         const payload = normalizeBody(init.body);
         const headers = headersToObject(
           init.headers ||
@@ -312,7 +315,7 @@
           type: "fetch",
           timestamp: new Date().toISOString(),
           status: "pending",
-          category: url.includes("event.convertmax.io") ? "event" : "convertmax",
+          category: "event",
           initiator: window.location.href,
           payload,
           eventType: highlightedEventType,
@@ -323,7 +326,7 @@
       try {
         const response = await originalFetch.apply(this, arguments);
 
-        if (isConvertmaxUrl(url)) {
+        if (isTrackUrl(url)) {
           emitRequest({
             requestId,
             url,
@@ -332,7 +335,7 @@
             timestamp: new Date().toISOString(),
             status: response.status,
             statusLine: `${response.status} ${response.statusText}`.trim(),
-            category: url.includes("event.convertmax.io") ? "event" : "convertmax",
+            category: "event",
             initiator: window.location.href,
             payload: normalizeBody(init.body),
             timeCompleted: new Date().toISOString()
@@ -341,7 +344,7 @@
 
         return response;
       } catch (error) {
-        if (isConvertmaxUrl(url)) {
+        if (isTrackUrl(url)) {
           emitRequest({
             requestId,
             url,
@@ -350,7 +353,7 @@
             timestamp: new Date().toISOString(),
             status: "error",
             error: error?.message || "Fetch failed",
-            category: url.includes("event.convertmax.io") ? "event" : "convertmax",
+            category: "event",
             initiator: window.location.href,
             payload: normalizeBody(init.body),
             timeCompleted: new Date().toISOString()
@@ -387,7 +390,7 @@
   XMLHttpRequest.prototype.send = function patchedSend(body) {
     const requestMeta = this.__convertmaxMonitor;
 
-    if (requestMeta && isConvertmaxUrl(requestMeta.url)) {
+    if (requestMeta && isTrackUrl(requestMeta.url)) {
       const requestId = `xhr:${Date.now()}:${Math.random().toString(16).slice(2)}`;
       const payload = normalizeBody(body);
       const headers = requestMeta.headers || {};
@@ -413,7 +416,7 @@
         type: "xmlhttprequest",
         timestamp: new Date().toISOString(),
         status: "pending",
-        category: requestMeta.url.includes("event.convertmax.io") ? "event" : "convertmax",
+        category: "event",
         initiator: window.location.href,
         payload,
         eventType: highlightedEventType,
@@ -431,7 +434,7 @@
             timestamp: new Date().toISOString(),
             status: this.status || "completed",
             statusLine: `${this.status} ${this.statusText}`.trim(),
-            category: requestMeta.url.includes("event.convertmax.io") ? "event" : "convertmax",
+            category: "event",
             initiator: window.location.href,
             payload,
             eventType: highlightedEventType,

@@ -2,6 +2,10 @@ const MAX_REQUESTS = 200;
 const requests = new Map();
 const STORAGE_KEY = "convertmaxRequests";
 const DEBUGGER_STATE_KEY = "convertmaxDebuggerState";
+const TRACK_URL_PATTERNS = [
+  "https://event.convertmax.io/v1/track/",
+  "https://event.convertmax.io/v1/track/*"
+];
 
 function decodeRequestBody(requestBody) {
   if (!requestBody) return "No payload";
@@ -136,7 +140,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     return { cancel: false };
   },
   {
-    urls: ["https://*.convertmax.io/*", "http://*.convertmax.io/*"],
+    urls: TRACK_URL_PATTERNS,
     types: ["xmlhttprequest", "ping", "script"]
   },
   ["requestBody"]
@@ -151,7 +155,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
     return { requestHeaders: details.requestHeaders };
   },
   {
-    urls: ["https://*.convertmax.io/*", "http://*.convertmax.io/*"],
+    urls: TRACK_URL_PATTERNS,
     types: ["xmlhttprequest", "ping", "script"]
   },
   ["requestHeaders"]
@@ -167,7 +171,7 @@ chrome.webRequest.onCompleted.addListener(
     });
   },
   {
-    urls: ["https://*.convertmax.io/*", "http://*.convertmax.io/*"],
+    urls: TRACK_URL_PATTERNS,
     types: ["xmlhttprequest", "ping", "script"]
   },
   ["responseHeaders"]
@@ -182,7 +186,7 @@ chrome.webRequest.onErrorOccurred.addListener(
     });
   },
   {
-    urls: ["https://*.convertmax.io/*", "http://*.convertmax.io/*"],
+    urls: TRACK_URL_PATTERNS,
     types: ["xmlhttprequest", "ping", "script"]
   }
 );
