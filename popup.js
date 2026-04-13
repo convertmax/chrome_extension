@@ -24,9 +24,11 @@ function getEventType(request) {
   if (!parsed) return "";
 
   return (
+    parsed.event ||
     parsed.event_type ||
     parsed.data?.event_type ||
     parsed.type ||
+    parsed.name ||
     ""
   );
 }

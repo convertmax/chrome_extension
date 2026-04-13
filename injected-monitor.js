@@ -13,10 +13,15 @@
     visitorId: "",
     lastEventType: ""
   };
-  const TRACK_ENDPOINT_PREFIX = "https://event.convertmax.io/v1/track/";
+  const TRACK_PATH_REGEX = /\/v1\/track\/?(?:[?#].*)?$/i;
 
   function isTrackUrl(url) {
-    return typeof url === "string" && url.startsWith(TRACK_ENDPOINT_PREFIX);
+    return typeof url === "string" && TRACK_PATH_REGEX.test(url);
+  }
+
+  function extractTrackBase(url) {
+    if (!isTrackUrl(url)) return "";
+    return url.replace(TRACK_PATH_REGEX, "");
   }
 
   function emitState(extra = {}) {
@@ -72,18 +77,27 @@
   function scanScriptPresence() {
     const scripts = Array.from(document.scripts || []);
     const hasConvertmaxScript = scripts.some((script) =>
-      typeof script.src === "string" && script.src.includes("convertmax.io")
+      typeof script.src === "string" &&
+      (
+        script.src.includes("convertmax.io") ||
+        script.src.includes("/cm_v2.js") ||
+        script.src.includes("/cm.js")
+      )
     );
     const hasConvertmaxFunction = typeof window.Convertmax === "function";
     const inlineConvertmaxScript = scripts.find((script) =>
       typeof script.textContent === "string" &&
-      script.textContent.includes("convertmax.io")
+      (
+        script.textContent.includes("convertmax.io") ||
+        script.textContent.includes("Convertmax") ||
+        script.textContent.includes("__convertmax_q")
+      )
     );
 
     if (inlineConvertmaxScript && !state.eventURL) {
-      const eventUrlMatch = inlineConvertmaxScript.textContent.match(
-        /eventURL\s*:\s*['"]([^'"]+)['"]/
-      );
+      const eventUrlMatch =
+        inlineConvertmaxScript.textContent.match(/eventURL\s*:\s*['"]([^'"]+)['"]/) ||
+        inlineConvertmaxScript.textContent.match(/host\s*:\s*['"]([^'"]+)['"]/);
 
       if (eventUrlMatch) {
         state.eventURL = eventUrlMatch[1].trim();
@@ -101,8 +115,8 @@
     if (!config || typeof config !== "object") return;
 
     emitState({
-      apiKey: config.apiKey || state.apiKey,
-      eventURL: config.eventURL || state.eventURL,
+      apiKey: config.apiKey || config.writeKey || state.apiKey,
+      eventURL: config.eventURL || config.host || state.eventURL,
       convertmaxPresent: true
     });
   }
@@ -125,6 +139,10 @@
     emitState({
       sessionId: client.session_id || state.sessionId,
       visitorId: client.visitor || state.visitorId,
+      apiKey: client.apiKey || state.apiKey,
+      eventURL: client.eventURL || state.eventURL,
+      scriptLoaded: Boolean(instance.loaded) || state.scriptLoaded,
+      readyEventSeen: Boolean(instance.ready) || state.readyEventSeen,
       apiAvailable: true,
       convertmaxPresent: true
     });
@@ -166,10 +184,14 @@
     })() : null;
 
     emitState({
-      eventURL: isTrackUrl(url) ? url.replace(/\/v1\/track\/?.*$/, "") || state.eventURL : state.eventURL,
+      eventURL: extractTrackBase(url) || state.eventURL,
       apiKey: extractApiKeyFromHeaders(headers) || state.apiKey,
-      sessionId: parsed?.session_id || state.sessionId,
-      visitorId: parsed?.visitor || state.visitorId,
+      sessionId: parsed?.session_id || parsed?.sessionId || state.sessionId,
+      visitorId:
+        parsed?.visitor ||
+        parsed?.anonymousId ||
+        parsed?.visitorId ||
+        state.visitorId,
       apiAvailable: true,
       convertmaxPresent: true
     });
@@ -202,8 +224,10 @@
 
   function captureTrack(eventName, payload) {
     const eventType =
+      payload?.event ||
       payload?.event_type ||
       payload?.type ||
+      payload?.name ||
       eventName ||
       "";
 
@@ -241,6 +265,10 @@
 
     captureConfigFromInstance(current);
     captureClientState(current);
+    emitState({
+      scriptLoaded: Boolean(current.loaded) || state.scriptLoaded,
+      readyEventSeen: Boolean(current.ready) || state.readyEventSeen
+    });
 
     function wrappedConvertmax() {
       const [action, config] = arguments;
@@ -298,9 +326,11 @@
         try {
           const parsed = JSON.parse(payload);
           highlightedEventType =
+            parsed.event ||
             parsed.event_type ||
             parsed.data?.event_type ||
             parsed.type ||
+            parsed.name ||
             "";
         } catch (error) {
           highlightedEventType = "";
@@ -399,9 +429,11 @@
       try {
         const parsed = JSON.parse(payload);
         highlightedEventType =
+          parsed.event ||
           parsed.event_type ||
           parsed.data?.event_type ||
           parsed.type ||
+          parsed.name ||
           "";
       } catch (error) {
         highlightedEventType = "";
